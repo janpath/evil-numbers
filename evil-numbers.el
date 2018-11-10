@@ -58,8 +58,11 @@
 
 ;;; Code:
 
+;; We are not using evil-define-operator, as it sorts mark and point, which we
+;; do not want.
+
 ;;;###autoload
-(evil-define-operator evil-numbers/inc-at-pt (amount beg end type &optional incremental)
+(defun evil-numbers/inc-at-pt (amount &optional incremental no-region)
   "Increment the number at point or after point before end-of-line by `amount'.
 When region is selected, increment all numbers in the region by `amount'
 
@@ -69,31 +72,61 @@ applying the regional features of `evil-numbers/inc-at-point'.
 
 INCREMENTAL causes the first number to be increased by 1*amount, the second by
 2*amount and so on.
-
 "
-  :motion nil
-  (interactive "*<c><R>")
+  (interactive "*p")
   (setq amount (or amount 1))
   (cond
-   ((and beg end type)
-    (let ((count 1))
+   ((and (evil-visual-state-p) (not no-region))
+    (let ((count 1)
+          ;; temporary-goal-column is never cleared. It is only valid if
+          ;; last-command is next-line or previous-line.
+          (newEol-col (or (and (memq last-command '(next-line previous-line))
+                               temporary-goal-column)
+                          most-negative-fixnum))
+          (beg (region-beginning))
+          (end (region-end))
+          (type (evil-visual-type)))
       (save-mark-and-excursion
         (save-match-data
-          (apply
+          (funcall
            (if (eq type 'block)
                (lambda (f) (evil-apply-on-block f beg end nil))
-             (lambda (f) (apply f (list beg end))))
-           (list
-            (lambda (beg end)
-              (save-restriction
-                (narrow-to-region beg end)
-                (while (re-search-forward "\\(?:0\\(?:[Bb][01]+\\|[Oo][0-7]+\\|[Xx][0-9A-Fa-f]+\\)\\|-?[0-9]+\\)" nil t)
-                  (evil-numbers/inc-at-pt (* amount count) nil nil nil)
-                  (if incremental (setq count (+ count 1)))
-                  ;; Undo vim compatability.
-                  (forward-char 1))
-                ))))))))
+             (lambda (f) (goto-char beg) (funcall f beg end)))
+           (lambda (beg end)
+             (evil-with-restriction beg end
+               (while (re-search-forward "\\(?:0\\(?:[Bb][01]+\\|[Oo][0-7]+\\|[Xx][0-9A-Fa-f]+\\)\\|-?[0-9]+\\)" nil t)
+                 (evil-numbers/inc-at-pt (* amount count) nil t)
+                 (if incremental (setq count (1+ count)))
+                 ;; Undo vim compatability.
+                 (forward-char 1)))
+             ;; This has to be outside of with-restriction, as otherwise we get
+             ;; the column relative to the restriction.
+             (setq newEol-col (max newEol-col (1- (current-column))))))))
+
+      ;; Restore visual state
+      ;; For some reason evil-visual-make-selection moves the end of the
+      ;; selection one character forwards, so we have to move it backwards in
+      ;; order to stay were we are.
+      (if (>= (evil-column (point)) (evil-column (mark)))
+          (backward-char)
+        (set-mark (1- (mark))))
+      (evil-visual-make-selection (mark) (point) type)
+
+      ;; Restore temporary-goal-column.
+      ;; This is used to make the visual block selection extend beyond the right
+      ;; boundary given by mark and point, when the line mark or point is on is
+      ;; too shorter than the widest line of the selection.
+      (if (eq type 'block)
+          (setq temporary-goal-column newEol-col
+                ;; temporary-goal-column is only recognised when last-command is
+                ;; next-line or previous-line. Setting this is a hack and
+                ;; probably breaks something.
+                this-command 'next-line))))
    (t (save-match-data
+        ;; forward-char, so that we do not find the number directly behind us.
+        ;; But do not do this if no-region is set, i.e. if we are called by
+        ;; inc-at-pt, as we are already at the correct position.
+        (unless no-region (forward-char))
         (if (not (evil-numbers/search-number))
             (error "No number at point or until end of line")
           (or
@@ -122,34 +155,31 @@ INCREMENTAL causes the first number to be increased by 1*amount, the second by
            (error "No number at point or until end of line")))))))
 
 ;;;###autoload
-(evil-define-operator evil-numbers/dec-at-pt (amount beg end type &optional incremental)
+(defun evil-numbers/dec-at-pt (amount &optional incremental)
   "Decrement the number at point or after point before end-of-line by `amount'.
 
 If a region is active, decrement all the numbers at a point by `amount'.
 
 This function uses `evil-numbers/inc-at-pt'"
-  :motion nil
-  (interactive "*<c><R>")
-  (evil-numbers/inc-at-pt (- (or amount 1)) beg end type))
+  (interactive "*p")
+  (evil-numbers/inc-at-pt (- (or amount 1))))
 
 ;;;###autoload
-(evil-define-operator evil-numbers/inc-at-pt-incremental (amount beg end type)
+(defun evil-numbers/inc-at-pt-incremental (amount)
   "Increment the number at point or after point before end-of-line by `amount'.
 
 If a region is active, increment all the numbers at a point by `amount'*n, where
 `n' is the index of the number among the numbers in the region, starting at 1.
 That is increment the first number by `amount', the second by 2*`amount', and so
 on."
-  :motion nil
-  (interactive "*<c><R>")
-  (evil-numbers/inc-at-pt amount beg end type 'incremental))
+  (interactive "*p")
+  (evil-numbers/inc-at-pt amount 'incremental))
 
 ;;;###autoload
-(evil-define-operator evil-numbers/dec-at-pt-incremental (amount beg end type)
+(defun evil-numbers/dec-at-pt-incremental (amount)
   "Like `evil-numbers/inc-at-pt-incremental' but with negated argument `amount'"
-  :motion nil
-  (interactive "*<c><R>")
-  (evil-numbers/inc-at-pt (- (or amount 1)) beg end type 'incemental))
+  (interactive "*p")
+  (evil-numbers/inc-at-pt (- (or amount 1)) 'incemental))
 
 ;;; utils
 
