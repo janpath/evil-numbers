@@ -61,3 +61,24 @@
    - Matthew Fidler <matthew.fidler@gmail.com>
    - Michael Markert <markert.michael@gmail.com>
    - Jan Path <jan@jpath.de>
+
+** Project status
+⚠️ This project currently has no "official" maintainer.
+
+`evil-numbers` is licensed under the GPL so that anyone can modify and
+distribute the source code. As [[http://catb.org/~esr/writings/homesteading/homesteading/ar01s03.html][ESR notes]], "Nothing prevents half a
+dozen different people from taking any given open-source product,
+duplicating the sources, running off with them in different
+evolutionary directions..."  The originator appears to have abandoned
+the project and several people have made (GitHub) forks.
+
+See #3 for more details.
+
+Other known (GitHub) forks include:
+
+The original project is here: https://github.com/cofi/evil-numbers
+
+[[https://github.com/janpath/evil-numbers][janpath/evil-numbers]] is the same repo as this. janpath is my old
+GitHub username, but I changed it.
+
+Another, apparently outdated, fork: https://github.com/amosbird/evil-numbers
